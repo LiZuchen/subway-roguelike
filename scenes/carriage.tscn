@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://carriage_001"]
+
+[ext_resource type="Script" path="res://scripts/scenes/carriage.gd" id="1_script"]
+
+[node name="Carriage" type="Node2D"]
+script = ExtResource("1_script")

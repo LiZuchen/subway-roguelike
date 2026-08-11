@@ -1,9 +1,4 @@
 .godot/
 *.uid
 build/
-*.tscn
-*.gd
-project.godot
 export_presets.cfg
-icon.svg
-icon.svg.import
