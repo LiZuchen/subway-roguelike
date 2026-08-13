@@ -49,6 +49,13 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 	if not alive:
 		return
 
+	# Handle grab via programmatic input (mobile controls)
+	if Input.is_action_just_pressed("grab"):
+		if is_grabbing:
+			release_grab()
+		else:
+			try_grab()
+
 	if is_grabbing:
 		if _color != Color.CYAN:
 			_color = Color.CYAN
@@ -78,10 +85,11 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 		push_time = max(0.0, push_time - state.step * 3.0)
 
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
+	# Keep for keyboard/mouse fallback — grab is also checked in _integrate_forces
 	if not alive:
 		return
-	if event.is_action_pressed("grab"):
+	if event.is_action_pressed("grab") and not event is InputEventAction:
 		if is_grabbing:
 			release_grab()
 		else:

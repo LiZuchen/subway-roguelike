@@ -39,6 +39,12 @@ var player_exited: bool = false
 var left_door: SlidingDoor = null
 var right_door: SlidingDoor = null
 
+# Tunnel effect (scrolling lights during packed phase)
+var _tunnel_lights: Array[ColorRect] = []
+var _tunnel_scroll: float = 0.0
+var _tunnel_speed: float = 120.0
+var _carriage_visual: Node2D = null
+
 
 func _ready() -> void:
 	# Compute door positions
@@ -47,6 +53,7 @@ func _ready() -> void:
 	right_door_pos = Vector2(CARRIAGE_X + CARRIAGE_WIDTH, CARRIAGE_Y + CARRIAGE_HEIGHT / 2)
 
 	_setup_scene()
+	_create_tunnel_lights()
 	_build_walls()
 	_draw_carriage()
 	_create_grab_rails()
@@ -59,48 +66,89 @@ func _ready() -> void:
 
 
 func _setup_scene() -> void:
-	# Dark tunnel
+	# Dark tunnel background
 	var bg = ColorRect.new()
 	bg.color = Color(0.12, 0.12, 0.15)
 	bg.size = Vector2(1280, 720)
 	bg.z_index = -10
 	add_child(bg)
 
-	# Platform visible behind doors (lighter area outside carriage)
 	var door_h = 100.0
 	var door_center_y = CARRIAGE_Y + CARRIAGE_HEIGHT / 2
-
-	# Left platform (outside left door) — wide enough to hold waiting passengers
 	var plat_w = 100.0
-	var left_platform = ColorRect.new()
-	left_platform.color = Color(0.55, 0.55, 0.5)
-	left_platform.size = Vector2(plat_w, door_h + 8)
-	left_platform.position = Vector2(CARRIAGE_X - plat_w - 4, door_center_y - door_h / 2 - 4)
-	left_platform.z_index = -7
-	add_child(left_platform)
 
-	# Right platform
-	var right_platform = ColorRect.new()
-	right_platform.color = Color(0.55, 0.55, 0.5)
-	right_platform.size = Vector2(plat_w, door_h + 8)
-	right_platform.position = Vector2(CARRIAGE_X + CARRIAGE_WIDTH + 4, door_center_y - door_h / 2 - 4)
-	right_platform.z_index = -7
-	add_child(right_platform)
+	# Build both platforms with tiles + safety line + station sign
+	_build_platform(CARRIAGE_X - plat_w - 4, door_center_y - door_h / 2 - 4, plat_w, door_h + 8, -1)
+	_build_platform(CARRIAGE_X + CARRIAGE_WIDTH + 4, door_center_y - door_h / 2 - 4, plat_w, door_h + 8, 1)
 
-	# Floor extension (platform level)
-	var left_floor = ColorRect.new()
-	left_floor.color = Color(0.35, 0.33, 0.3)
-	left_floor.size = Vector2(plat_w + 4, 10)
-	left_floor.position = Vector2(CARRIAGE_X - plat_w - 4, CARRIAGE_Y + CARRIAGE_HEIGHT - 10)
-	left_floor.z_index = -7
-	add_child(left_floor)
 
-	var right_floor = ColorRect.new()
-	right_floor.color = Color(0.35, 0.33, 0.3)
-	right_floor.size = Vector2(plat_w + 4, 10)
-	right_floor.position = Vector2(CARRIAGE_X + CARRIAGE_WIDTH, CARRIAGE_Y + CARRIAGE_HEIGHT - 10)
-	right_floor.z_index = -7
-	add_child(right_floor)
+func _build_platform(px: float, py: float, pw: float, ph: float, side: int) -> void:
+	# Platform base
+	var base = ColorRect.new()
+	base.color = Color(0.45, 0.43, 0.38)
+	base.size = Vector2(pw, ph)
+	base.position = Vector2(px, py)
+	base.z_index = -7
+	add_child(base)
+
+	# Platform tile pattern (checkerboard)
+	var tile_size = 16.0
+	for tx in range(ceil(pw / tile_size)):
+		for ty in range(ceil(ph / tile_size)):
+			if (tx + ty) % 2 == 0:
+				var tile = ColorRect.new()
+				tile.color = Color(0.5, 0.48, 0.42)
+				tile.size = Vector2(tile_size - 1, tile_size - 1)
+				tile.position = Vector2(px + tx * tile_size, py + ty * tile_size)
+				tile.z_index = -6
+				add_child(tile)
+
+	# Yellow safety line at platform edge (closest to carriage)
+	var edge_x = px + pw - 4 if side < 0 else px
+	var line = ColorRect.new()
+	line.color = Color(1.0, 0.85, 0.0)
+	line.size = Vector2(4, ph)
+	line.position = Vector2(edge_x, py)
+	line.z_index = -5
+	add_child(line)
+
+	# Station sign above platform
+	var sign = ColorRect.new()
+	sign.color = Color(0.15, 0.25, 0.55)
+	sign.size = Vector2(pw - 10, 22)
+	sign.position = Vector2(px + 5, py - 26)
+	sign.z_index = -5
+	add_child(sign)
+
+	var sign_label = Label.new()
+	sign_label.text = "站台"
+	sign_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sign_label.add_theme_font_size_override("font_size", 12)
+	sign_label.add_theme_color_override("font_color", Color.WHITE)
+	sign_label.size = Vector2(pw - 10, 22)
+	sign_label.position = Vector2(px + 5, py - 24)
+	sign_label.z_index = -4
+	add_child(sign_label)
+
+
+func _create_tunnel_lights() -> void:
+	# Scrolling tunnel lights — above and below the carriage (train moves vertically)
+	var light_color = Color(1.0, 0.9, 0.5, 0.6)
+	var gap = 40.0
+	# Light columns along the carriage width (above and below)
+	for side in [-1, 1]:
+		var start_y = CARRIAGE_Y - 150 if side < 0 else CARRIAGE_Y + CARRIAGE_HEIGHT + 10
+		for col in range(3):
+			var x_pos = CARRIAGE_X + 60 + col * (CARRIAGE_WIDTH - 120) / 2.0
+			var count = 8
+			for i in range(count):
+				var light = ColorRect.new()
+				light.color = light_color
+				light.size = Vector2(randf_range(2, 4), randf_range(4, 12))
+				light.position = Vector2(x_pos + randf_range(-8, 8), start_y + i * gap + randf_range(-20, 20))
+				light.z_index = -9
+				add_child(light)
+				_tunnel_lights.append(light)
 
 
 func _build_walls() -> void:
@@ -167,6 +215,7 @@ func _add_wall(pos: Vector2, size: Vector2, layer: int) -> StaticBody2D:
 func _draw_carriage() -> void:
 	var draw_node = Node2D.new()
 	draw_node.name = "CarriageVisual"
+	_carriage_visual = draw_node
 	add_child(draw_node)
 
 	var x = CARRIAGE_X
@@ -174,44 +223,107 @@ func _draw_carriage() -> void:
 	var w = CARRIAGE_WIDTH
 	var h = CARRIAGE_HEIGHT
 
-	# Outer shell
+	# Outer shell (train body)
 	var outer = ColorRect.new()
-	outer.color = Color(0.55, 0.55, 0.5)
-	outer.size = Vector2(w + 32, h + 32)
-	outer.position = Vector2(x - 16, y - 16)
+	outer.color = Color(0.5, 0.5, 0.45)
+	outer.size = Vector2(w + 36, h + 36)
+	outer.position = Vector2(x - 18, y - 18)
 	outer.z_index = -6
 	draw_node.add_child(outer)
 
-	# Inner floor
+	# Inner wall
 	var inner = ColorRect.new()
-	inner.color = Color(0.78, 0.76, 0.72)
+	inner.color = Color(0.85, 0.83, 0.78)
 	inner.size = Vector2(w, h)
 	inner.position = Vector2(x, y)
 	inner.z_index = -5
 	draw_node.add_child(inner)
 
-	# Floor strip
+	# Floor
 	var floor = ColorRect.new()
-	floor.color = Color(0.35, 0.33, 0.3)
-	floor.size = Vector2(w, 10)
-	floor.position = Vector2(x, y + h - 10)
+	floor.color = Color(0.25, 0.23, 0.2)
+	floor.size = Vector2(w, 14)
+	floor.position = Vector2(x, y + h - 14)
 	draw_node.add_child(floor)
 
-	# Ceiling rail
+	# Floor edge line
+	var floor_line = ColorRect.new()
+	floor_line.color = Color(0.6, 0.6, 0.55)
+	floor_line.size = Vector2(w, 2)
+	floor_line.position = Vector2(x, y + h - 14)
+	draw_node.add_child(floor_line)
+
+	# Ceiling
+	var ceiling = ColorRect.new()
+	ceiling.color = Color(0.78, 0.76, 0.72)
+	ceiling.size = Vector2(w, 18)
+	ceiling.position = Vector2(x, y)
+	ceiling.z_index = -3
+	draw_node.add_child(ceiling)
+
+	# Ceiling rail (handrail)
 	var rail = ColorRect.new()
-	rail.color = Color(0.4, 0.4, 0.4)
+	rail.color = Color(0.35, 0.35, 0.35)
 	rail.size = Vector2(w, 4)
-	rail.position = Vector2(x, y + 20)
-	rail.z_index = -3
+	rail.position = Vector2(x, y + 22)
+	rail.z_index = -2
 	draw_node.add_child(rail)
+
+	# Windows along the top (fake train windows)
+	var door_h = 100.0
+	var door_top_y = CARRIAGE_Y + CARRIAGE_HEIGHT / 2 - door_h / 2
+	for win_x in [x + 20, x + 100, x + 190, x + w - 110, x + w - 40]:
+		# Skip windows where doors are
+		var win_cx = win_x + 25
+		if abs(win_cx - x) < 40 or abs(win_cx - (x + w)) < 40:
+			continue
+		var win = ColorRect.new()
+		win.color = Color(0.25, 0.3, 0.4)
+		win.size = Vector2(50, 20)
+		win.position = Vector2(win_x, y + 2)
+		win.z_index = -4
+		draw_node.add_child(win)
+
+	# Seats along left and right walls
+	var seat_color = Color(0.3, 0.35, 0.55)
+	var seat_w = 14
+	var seat_top = y + 30
+	var seat_h = h - 40
+	# Top section seat (left wall, above door)
+	var seat1 = ColorRect.new()
+	seat1.color = seat_color
+	seat1.size = Vector2(seat_w, door_top_y - seat_top)
+	seat1.position = Vector2(x + 4, seat_top)
+	seat1.z_index = -4
+	draw_node.add_child(seat1)
+	# Bottom section seat (left wall, below door)
+	var seat2 = ColorRect.new()
+	seat2.color = seat_color
+	seat2.size = Vector2(seat_w, (y + h - 14) - (door_top_y + door_h))
+	seat2.position = Vector2(x + 4, door_top_y + door_h)
+	seat2.z_index = -4
+	draw_node.add_child(seat2)
+	# Right wall seats
+	var seat3 = ColorRect.new()
+	seat3.color = seat_color
+	seat3.size = Vector2(seat_w, door_top_y - seat_top)
+	seat3.position = Vector2(x + w - seat_w - 4, seat_top)
+	seat3.z_index = -4
+	draw_node.add_child(seat3)
+	var seat4 = ColorRect.new()
+	seat4.color = seat_color
+	seat4.size = Vector2(seat_w, (y + h - 14) - (door_top_y + door_h))
+	seat4.position = Vector2(x + w - seat_w - 4, door_top_y + door_h)
+	seat4.z_index = -4
+	draw_node.add_child(seat4)
 
 	# Vertical poles
 	for pole_x in [x + 110, x + w / 2, x + w - 130]:
 		var pole = ColorRect.new()
-		pole.color = Color(0.45, 0.45, 0.45)
-		pole.size = Vector2(3, h - 40)
+		pole.color = Color(0.7, 0.7, 0.65)
+		pole.size = Vector2(4, h - 40)
 		pole.position = Vector2(pole_x, y + 30)
-		pole.z_index = -3
+		pole.z_index = -2
 		draw_node.add_child(pole)
 
 
@@ -281,6 +393,10 @@ func _setup_hud() -> void:
 	progress_ui = load("res://scripts/ui/progress_bar.gd").new()
 	canvas.add_child(progress_ui)
 
+	# Mobile touch controls (auto-hides on desktop)
+	var mobile_ctrl = load("res://scripts/ui/mobile_controls.gd").new()
+	canvas.add_child(mobile_ctrl)
+
 	# Station notification label (centered top)
 	notify_label = Label.new()
 	notify_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -314,6 +430,37 @@ func _setup_signals() -> void:
 func _process(delta: float) -> void:
 	if GameState.game_over:
 		return
+
+	# Tunnel lights scroll during packed phase (doors closed)
+	if not carriage_state.doors_open:
+		# Decelerate when close to station (< 1.5s remaining)
+		var speed = _tunnel_speed
+		var brake_factor = 1.0
+		if station_timer < 1.5:
+			brake_factor = station_timer / 1.5
+			speed = _tunnel_speed * brake_factor
+		for light in _tunnel_lights:
+			if not is_instance_valid(light):
+				continue
+			light.position.y -= speed * delta
+			# Wrap lights that scrolled off-screen vertically
+			if light.position.y < CARRIAGE_Y - 150:
+				light.position.y += 300 + CARRIAGE_HEIGHT
+			elif light.position.y > CARRIAGE_Y + CARRIAGE_HEIGHT + 150:
+				light.position.y -= 300 + CARRIAGE_HEIGHT
+
+		# Screen shake: subtle train vibration, stronger vertically (train moves up/down)
+		if _carriage_visual:
+			var shake_amp = 1.5 * brake_factor
+			_carriage_visual.position = Vector2(
+				randf_range(-shake_amp * 0.4, shake_amp * 0.4),
+				randf_range(-shake_amp, shake_amp)
+			)
+	else:
+		# Reset shake when doors open
+		if _carriage_visual and _carriage_visual.position != Vector2.ZERO:
+			_carriage_visual.position = Vector2.ZERO
+
 	if carriage_state.doors_open:
 		if freeze_countdown > 0:
 			freeze_countdown -= delta
@@ -409,6 +556,7 @@ func _on_doors_closed() -> void:
 	# Final station: player didn't exit in time
 	if is_final_station and not player_exited:
 		crowd_physics.allow_player_exit = false
+		GameState.game_over = true  # prevent _process from double-triggering
 		_show_notification("错过下车！坐过站了...")
 		GameState.late_seconds += 600  # heavy late penalty
 		await get_tree().create_timer(1.5).timeout
