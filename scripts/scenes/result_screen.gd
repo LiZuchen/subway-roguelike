@@ -27,7 +27,7 @@ func _build_ui() -> void:
 	title.offset_right = 150
 	add_child(title)
 
-	# Result description
+	# Result description (from the run that just ended)
 	var result_label = Label.new()
 	result_label.add_theme_font_size_override("font_size", 24)
 	result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -37,6 +37,18 @@ func _build_ui() -> void:
 	result_label.offset_left = -200
 	result_label.offset_right = 200
 	add_child(result_label)
+
+	var res = GameState.last_result
+	if res.is_empty():
+		result_label.text = ""
+	else:
+		var change: int = res.get("change", 0)
+		var sign = "+" if change >= 0 else ""
+		result_label.text = "%s（工资 %s%d 元）" % [res.get("desc", ""), sign, change]
+		if change < 0:
+			result_label.add_theme_color_override("font_color", Color(0.8, 0.2, 0.2))
+		elif change > 0:
+			result_label.add_theme_color_override("font_color", Color(0.2, 0.6, 0.2))
 
 	# Salary display
 	var salary_label = Label.new()

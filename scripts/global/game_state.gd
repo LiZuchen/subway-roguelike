@@ -20,8 +20,18 @@ var run_start_time: float = 0.0
 var late_seconds: float = 0.0
 var game_over: bool = false
 
+# Result of the last finished run (shown on the result screen)
+var last_result: Dictionary = {}
+
 # Whether we're mid-run
 var in_run: bool = false
+
+# Schedule (must match carriage.gd STATION_DURATION / CarriageState.DOOR_OPEN_DURATION):
+# one station = 5s packed + 15s doors open; the final station's doors open after
+# (total_stations - 1) full cycles + 5s travel from home.
+const PACKED_SECONDS: float = 5.0
+const DOOR_OPEN_SECONDS: float = 15.0
+const FALL_OFF_PENALTY_SECONDS: float = 180.0  # 被挤下车 = 等下一趟车
 
 const SAVE_PATH = "user://save_data.json"
 
@@ -35,22 +45,31 @@ func reset_run() -> void:
 	late_seconds = 0.0
 	game_over = false
 	in_run = true
+	last_result = {}
 
 func add_late_seconds(secs: float) -> void:
 	late_seconds += secs
 
 func finish_run() -> Dictionary:
 	in_run = false
+
+	# Add the actual trip time beyond the scheduled arrival, so 准时/迟到 is a
+	# real judgment of this run instead of a static value.
+	if run_start_time > 0.0:
+		var elapsed = Time.get_ticks_msec() / 1000.0 - run_start_time
+		var scheduled = (total_stations - 1) * (PACKED_SECONDS + DOOR_OPEN_SECONDS) + PACKED_SECONDS
+		late_seconds += maxf(0.0, elapsed - scheduled)
+
 	var result = {}
-	if late_seconds < 0:
-		result["type"] = "early"
+	if late_seconds < 30.0:
+		result["type"] = "on_time"
 		result["change"] = 50
 		result["desc"] = "准时到达！"
-	elif late_seconds < 300:
+	elif late_seconds < 300.0:
 		result["type"] = "slight_late"
 		result["change"] = 20
 		result["desc"] = "迟到不到5分钟"
-	elif late_seconds < 900:
+	elif late_seconds < 900.0:
 		result["type"] = "late"
 		result["change"] = 0
 		result["desc"] = "迟到不到15分钟"
@@ -60,17 +79,24 @@ func finish_run() -> Dictionary:
 		result["desc"] = "迟到超过15分钟！"
 
 	salary = max(0, salary + result["change"])
+	last_result = result
 	save_game()
 	return result
 
 func player_fell_off() -> void:
 	"""Called when player is pushed off the carriage."""
+	late_seconds += FALL_OFF_PENALTY_SECONDS  # waiting for the next train
 	current_stamina -= 1
 	if current_stamina <= 0:
 		# Dead mid-run
 		salary = max(0, salary - 50)
 		game_over = true
 		in_run = false
+		last_result = {
+			"type": "died",
+			"change": -50,
+			"desc": "体力耗尽，被人潮抬下了车……",
+		}
 		save_game()
 		EventBus.player_died.emit()
 	else:

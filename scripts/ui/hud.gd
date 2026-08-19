@@ -4,6 +4,8 @@ extends Control
 
 var stamina_label: Label
 var salary_label: Label
+var _last_stamina: int = -1
+var _last_salary: int = -1
 
 
 func _ready() -> void:
@@ -34,10 +36,15 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	_update_display()
+	# Only touch the labels when something actually changed — avoids rebuilding
+	# strings and re-laying-out text every frame.
+	if GameState.current_stamina != _last_stamina or GameState.salary != _last_salary:
+		_update_display()
 
 
 func _update_display() -> void:
+	_last_stamina = GameState.current_stamina
+	_last_salary = GameState.salary
 	stamina_label.text = "体力： " + "♥".repeat(GameState.current_stamina) + "♡".repeat(max(0, GameState.stamina - GameState.current_stamina))
 	salary_label.text = "余额：¥" + str(GameState.salary)
 

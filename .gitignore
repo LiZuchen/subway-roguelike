@@ -1,5 +1,4 @@
 .godot/
 *.uid
 build/
-export_presets.cfg
 game/

@@ -46,7 +46,7 @@ func spawn_initial() -> Array[BasePassenger]:
 
 
 func spawn_entering_batch(count: int, door_side: int) -> Array[BasePassenger]:
-	"""Spawn passengers spread out on the platform, not clustered at the door."""
+	## Spawn passengers spread out on the platform, not clustered at the door.
 	var door_pos = left_door_pos if door_side < 0 else right_door_pos
 	var inward_dir = Vector2(door_side, 0)  # left door: move right (+1), right door: move left (-1)
 
@@ -111,13 +111,17 @@ func _create_passenger(type_name: String) -> BasePassenger:
 
 
 func mark_exiting_passengers(door_side: int, count: int) -> void:
-	"""Tag some passengers as wanting to exit through the given door."""
+	## Tag some passengers as wanting to exit through the given door.
 	var door_pos = left_door_pos if door_side < 0 else right_door_pos
-	var nodes = get_tree().get_nodes_in_group("passengers")
-	nodes.shuffle()
-	for i in range(min(count, nodes.size())):
-		if nodes[i] is BasePassenger:
-			nodes[i].set_exiting(door_pos)
+	# Only PACKED passengers are eligible — never hijack someone already
+	# entering/exiting (e.g. frozen platform passengers waiting to board).
+	var candidates: Array[BasePassenger] = []
+	for node in get_tree().get_nodes_in_group("passengers"):
+		if node is BasePassenger and node.mode == BasePassenger.Mode.PACKED:
+			candidates.append(node as BasePassenger)
+	candidates.shuffle()
+	for i in range(min(count, candidates.size())):
+		candidates[i].set_exiting(door_pos)
 
 
 func remove_exiting_passengers(recycle_entering: bool = true, door_side: int = 0) -> void:

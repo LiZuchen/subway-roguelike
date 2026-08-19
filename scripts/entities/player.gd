@@ -9,6 +9,7 @@ const MAX_SPEED = 100.0
 
 var is_grabbing: bool = false
 var grab_target: GrabPoint = null
+var _grab_held: bool = false  # rising-edge detection for the grab input
 var alive: bool = true
 var push_time: float = 0.0  # accumulates while pushing against crowd
 var player_radius: float = 20.0
@@ -49,12 +50,16 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 	if not alive:
 		return
 
-	# Handle grab via programmatic input (mobile controls)
-	if Input.is_action_just_pressed("grab"):
+	# Handle grab input on a rising edge. Works uniformly for keyboard, mouse,
+	# gamepad and Input.action_press (mobile), and is immune to render/physics
+	# frame mismatches that make is_action_just_pressed unreliable here.
+	var grab_pressed = Input.is_action_pressed("grab")
+	if grab_pressed and not _grab_held:
 		if is_grabbing:
 			release_grab()
 		else:
 			try_grab()
+	_grab_held = grab_pressed
 
 	if is_grabbing:
 		if _color != Color.CYAN:
@@ -83,17 +88,6 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 			push_time = max(0.0, push_time - state.step * 2.0)
 	else:
 		push_time = max(0.0, push_time - state.step * 3.0)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	# Keep for keyboard/mouse fallback — grab is also checked in _integrate_forces
-	if not alive:
-		return
-	if event.is_action_pressed("grab") and not event is InputEventAction:
-		if is_grabbing:
-			release_grab()
-		else:
-			try_grab()
 
 
 func try_grab() -> void:

@@ -56,6 +56,7 @@ func _get_color() -> Color:
 func set_exiting(door_pos: Vector2) -> void:
 	mode = Mode.EXITING
 	exit_target = door_pos
+	_reset_wander_force()  # absolute, not multiplicative — safe if re-marked
 	wander_force *= 3.0
 	mass = push_mass * 2.5  # heavier to push through, but not a bulldozer
 	_exit_elapsed = 0.0
@@ -67,6 +68,7 @@ func set_exiting(door_pos: Vector2) -> void:
 func set_entering(door_pos: Vector2, inward_dir: Vector2) -> void:
 	mode = Mode.ENTERING
 	exit_target = door_pos + inward_dir * 180.0
+	_reset_wander_force()  # absolute, not multiplicative — safe if recycled
 	wander_force *= 2.0
 	mass = push_mass * 1.2
 	_exit_elapsed = 0.0

@@ -6,6 +6,7 @@ var stations: Array[String] = ["家", "1", "2", "3", "4", "5", "公司"]
 var progress_label: Label
 var bar_bg: ColorRect
 var bar_fill: ColorRect
+var _last_station: int = -1
 
 
 func _ready() -> void:
@@ -41,8 +42,11 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var current = GameState.current_station
+	if current == _last_station:
+		return  # nothing changed — skip string building
+	_last_station = current
 	var total = GameState.total_stations
-	if current == 5:
+	if current >= total:
 		progress_label.text = "终点站 %d/%d  →  下车！" % [current, total]
 	else:
 		progress_label.text = "第 %d/%d 站  →  公司" % [current, total]

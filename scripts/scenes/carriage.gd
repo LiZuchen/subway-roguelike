@@ -48,7 +48,6 @@ var _carriage_visual: Node2D = null
 
 func _ready() -> void:
 	# Compute door positions
-	var door_h = 100.0
 	left_door_pos = Vector2(CARRIAGE_X, CARRIAGE_Y + CARRIAGE_HEIGHT / 2)
 	right_door_pos = Vector2(CARRIAGE_X + CARRIAGE_WIDTH, CARRIAGE_Y + CARRIAGE_HEIGHT / 2)
 
@@ -465,10 +464,13 @@ func _process(delta: float) -> void:
 		if freeze_countdown > 0:
 			freeze_countdown -= delta
 			if freeze_label:
+				var new_text: String
 				if is_final_station:
-					freeze_label.text = "%s下车  关门倒计时: %.1fs" % [_final_door_arrow(), max(freeze_countdown, 0.0)]
+					new_text = "%s下车  关门倒计时: %.1fs" % [_final_door_arrow(), max(freeze_countdown, 0.0)]
 				else:
-					freeze_label.text = "上车倒计时: %.1fs" % max(freeze_countdown, 0.0)
+					new_text = "上车倒计时: %.1fs" % max(freeze_countdown, 0.0)
+				if new_text != freeze_label.text:
+					freeze_label.text = new_text
 			if freeze_countdown <= 0:
 				if freeze_label and not is_final_station:
 					freeze_label.text = ""
